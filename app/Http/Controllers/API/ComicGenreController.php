@@ -8,30 +8,34 @@ use Illuminate\Http\Request;
 
 class ComicGenreController extends Controller
 {
-    public function index() { return response()->json(ComicGenre::all()); }
-
-    public function store(Request $request)
+    public function getComicsByGenre($genreId, Request $request)
     {
-        $validated = $request->validate([
-            'comic_id' => 'required|exists:comics,id',
-            'genre_id' => 'required|exists:genres,id',
-        ]);
-        $comicGenre = ComicGenre::create($validated);
-        return response()->json($comicGenre, 201);
+        $perPage = $request->input('per_page', 10);
+        $page = $request->input('page', 1);
+
+        $comics = ComicGenre::with([
+            'comic' => function ($query) {
+                $query->with([
+                    'statistics',
+                    'genres',
+                    'chapters' => function ($query) {
+                        $query->orderBy('created_at', 'desc')->take(3);
+                    }
+                ]);
+            }
+        ])->where('genre_id', $genreId)->paginate($perPage, ['*'], 'page', $page);
+
+        return response()->json([
+            'genre' => $comics->first()->genre->name,
+            'data' => $comics->items(),
+            'pagination' => [
+                'current_page' => $comics->currentPage(),
+                'last_page' => $comics->lastPage(),
+                'per_page' => $comics->perPage(),
+                'total' => $comics->total(),
+                'from' => $comics->firstItem(),
+                'to' => $comics->lastItem()
+            ]
+        ], 200);
     }
-
-    public function show($id) { return response()->json(ComicGenre::findOrFail($id)); }
-
-    public function update(Request $request, $id)
-    {
-        $comicGenre = ComicGenre::findOrFail($id);
-        $validated = $request->validate([
-            'comic_id' => 'sometimes|exists:comics,id',
-            'genre_id' => 'sometimes|exists:genres,id',
-        ]);
-        $comicGenre->update($validated);
-        return response()->json($comicGenre);
-    }
-
-    public function destroy($id) { ComicGenre::findOrFail($id)->delete(); return response()->json(null, 204); }
 }

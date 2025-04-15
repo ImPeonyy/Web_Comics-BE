@@ -128,7 +128,7 @@ class UserController extends Controller
             'transformation' => [
                 ['width' => 250, 'crop' => 'scale'],
                 ['quality' => 'auto'],
-                ['fetch_format' => 'webp'],
+                ['fetch_format' => 'avif'],
             ],
         ]);
 

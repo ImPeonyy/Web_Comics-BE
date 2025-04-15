@@ -14,7 +14,7 @@ class CreateComicsTable extends Migration
             $table->text('description')->nullable(); // Mô tả của bộ truyện
             $table->string('author', 100)->default('Peonyy~'); // Tác giả của bộ truyện
             $table->text('cover_image'); // Trang bìa của bộ truyện
-            $table->enum('status', ['ongoing', 'completed'])->default('ongoing'); // Trạng thái của bộ truyện
+            $table->enum('status', ['Ongoing', 'Completed'])->default('Ongoing'); // Trạng thái của bộ truyện
             $table->timestamps();
         });
     }

@@ -10,18 +10,89 @@ use Illuminate\Support\Facades\Auth;
 class HistoryController extends Controller
 {
     // Lấy danh sách history của người dùng hiện tại
-    public function getCurrentUserHistory()
+    public function getChapterHistory(Request $request)
     {
         $user = Auth::user();
 
         $history = History::where('user_id', $user->id)
-                         ->with(['comic', 'chapter'])
-                         ->orderBy('last_read_at', 'desc') // Sắp xếp theo thời gian đọc gần nhất
-                         ->get();
+            ->with(['comic', 'chapter'])
+            ->orderBy('updated_at', 'desc') // Sắp xếp theo thời gian đọc gần nhất
+            ->get();
 
         return response()->json([
             'message' => 'Danh sách lịch sử đọc của bạn',
             'history' => $history,
+        ], 200);
+    }
+
+    public function getCurrentUserHistory(Request $request)
+    {
+        $user = Auth::user();
+
+        $perPage = $request->input('per_page', 10);
+        $page = $request->input('page', 1);
+
+        $history = History::where('user_id', $user->id)
+            ->with([
+                'comic' => function ($query) {
+                    $query->with([
+                        'statistics',
+                        'genres',
+                        'favorites',
+                    ]);
+                },
+                'chapter'
+            ])
+            ->select('history.*')
+            ->whereIn('chapter_id', function ($query) use ($user) {
+                $query->selectRaw('MAX(chapter_id)')
+                    ->from('history')
+                    ->where('user_id', $user->id)
+                    ->groupBy('comic_id');
+            })
+            ->orderBy('updated_at', 'desc')
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        return response()->json([
+            'data' => $history,
+            'pagination' => [
+                'current_page' => $history->currentPage(),
+                'last_page' => $history->lastPage(),
+                'per_page' => $history->perPage(),
+                'total' => $history->total(),
+                'from' => $history->firstItem(),
+                'to' => $history->lastItem()
+            ]
+        ], 200);
+    }
+
+    public function getHomePageHistory(Request $request)
+    {
+        $user = Auth::user();
+
+        $history = History::where('user_id', $user->id)
+            ->with([
+                'comic' => function ($query) {
+                    $query->with([
+                        'statistics',
+                        'genres',
+                        'favorites',
+                    ]);
+                },
+                'chapter'
+            ])
+            ->select('history.*')
+            ->whereIn('chapter_id', function ($query) use ($user) {
+                $query->selectRaw('MAX(chapter_id)')
+                    ->from('history')
+                    ->where('user_id', $user->id)
+                    ->groupBy('comic_id');
+            })
+            ->orderBy('updated_at', 'desc')
+            ->get();
+
+        return response()->json([
+            'data' => $history,
         ], 200);
     }
 
@@ -37,13 +108,13 @@ class HistoryController extends Controller
 
         // Kiểm tra xem chapter này đã có trong lịch sử chưa
         $existingHistory = History::where('user_id', $user->id)
-                                 ->where('comic_id', $validated['comic_id'])
-                                 ->where('chapter_id', $validated['chapter_id'])
-                                 ->first();
+            ->where('comic_id', $validated['comic_id'])
+            ->where('chapter_id', $validated['chapter_id'])
+            ->first();
 
         if ($existingHistory) {
             // Cập nhật thời gian last_read_at nếu đã tồn tại
-            $existingHistory->update(['last_read_at' => now()]);
+            $existingHistory->update(['updated_at' => now()]);
             return response()->json([
                 'message' => 'Đã cập nhật lịch sử đọc',
                 'history' => $existingHistory,
@@ -54,7 +125,8 @@ class HistoryController extends Controller
             'user_id' => $user->id,
             'comic_id' => $validated['comic_id'],
             'chapter_id' => $validated['chapter_id'],
-            'last_read_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
 
         return response()->json([
@@ -74,9 +146,9 @@ class HistoryController extends Controller
         ]);
 
         $history = History::where('user_id', $user->id)
-                         ->where('comic_id', $validated['comic_id'])
-                         ->where('chapter_id', $validated['chapter_id'])
-                         ->first();
+            ->where('comic_id', $validated['comic_id'])
+            ->where('chapter_id', $validated['chapter_id'])
+            ->first();
 
         if (!$history) {
             return response()->json([

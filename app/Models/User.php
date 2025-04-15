@@ -14,6 +14,16 @@ class User extends Authenticatable
     protected $fillable = ['username', 'email', 'password', 'exp', 'role', 'avatar'];
     protected $hidden = ['password']; // Ẩn password khi trả về JSON
 
+    public function getCreatedAtAttribute($value)
+    {
+        return \Carbon\Carbon::parse($value)->timezone('Asia/Ho_Chi_Minh')->format('m/d/Y H:i:s');
+    }
+
+    public function getUpdatedAtAttribute($value)
+    {
+        return \Carbon\Carbon::parse($value)->timezone('Asia/Ho_Chi_Minh')->format('m/d/Y H:i:s');
+    }
+
     // Quan hệ
     public function comments()
     {

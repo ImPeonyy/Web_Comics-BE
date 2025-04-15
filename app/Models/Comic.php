@@ -8,6 +8,16 @@ class Comic extends Model
 {
     protected $fillable = ['title', 'description', 'author', 'cover_image', 'status'];
 
+    public function getCreatedAtAttribute($value)
+    {
+        return \Carbon\Carbon::parse($value)->timezone('Asia/Ho_Chi_Minh')->format('m/d/Y H:i:s');
+    }
+
+    public function getUpdatedAtAttribute($value)
+    {
+        return \Carbon\Carbon::parse($value)->timezone('Asia/Ho_Chi_Minh')->format('m/d/Y H:i:s');
+    }
+
     // Quan hệ
     public function genres()
     {

@@ -8,32 +8,17 @@ use Illuminate\Http\Request;
 
 class ChapterController extends Controller
 {
-    public function index() { return response()->json(Chapter::all()); }
-
-    public function store(Request $request)
+    public function index()
     {
-        $validated = $request->validate([
-            'comic_id' => 'required|exists:comics,id',
-            'chapter_order' => 'required|numeric',
-            'title' => 'required|string|max:255',
-        ]);
-        $chapter = Chapter::create($validated);
-        return response()->json($chapter, 201);
+        return response()->json(Chapter::all());
     }
 
-    public function show($id) { return response()->json(Chapter::findOrFail($id)); }
-
-    public function update(Request $request, $id)
+    public function getChaptersByComicId($comicId)
     {
-        $chapter = Chapter::findOrFail($id);
-        $validated = $request->validate([
-            'comic_id' => 'sometimes|exists:comics,id',
-            'chapter_order' => 'sometimes|numeric',
-            'title' => 'sometimes|string|max:255',
-        ]);
-        $chapter->update($validated);
-        return response()->json($chapter);
-    }
+        $chapters = Chapter::where('comic_id', $comicId)
+            ->orderBy('chapter_order', 'asc')
+            ->get();
 
-    public function destroy($id) { Chapter::findOrFail($id)->delete(); return response()->json(null, 204); }
+        return response()->json($chapters);
+    }
 }
