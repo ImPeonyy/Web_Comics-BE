@@ -4,44 +4,194 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\Statistic;
+use App\Models\Comic;
 use Illuminate\Http\Request;
+use Carbon\Carbon;
 
-/**
- * @OA\Tag(name="Statistics", description="API Endpoints for Statistics")
- */
 class StatisticController extends Controller
 {
-    /** @OA\Get(path="/api/statistics", tags={"Statistics"}, summary="Get all statistics", @OA\Response(response=200, description="Success")) */
-    public function index() { return response()->json(Statistic::all()); }
 
-    /** @OA\Post(path="/api/statistics", tags={"Statistics"}, summary="Create statistic", @OA\RequestBody(@OA\JsonContent(@OA\Property(property="comic_id", type="integer"), @OA\Property(property="view_count", type="integer"), @OA\Property(property="date_recorded", type="string", format="date"))), @OA\Response(response=201, description="Created")) */
-    public function store(Request $request)
+    public function getComicViews($comicId)
     {
-        $validated = $request->validate([
-            'comic_id' => 'required|exists:comics,id',
-            'view_count' => 'required|integer',
-            'date_recorded' => 'required|date',
+        $statistic = Statistic::where('comic_id', $comicId)->first();
+
+        if (!$statistic) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không tìm thấy thống kê cho bộ truyện này',
+                'data' => null
+            ], 404);
+        }
+
+        return response()->json([
+            'data' => [
+                'comic_id' => $statistic->comic_id,
+                'view_count' => $statistic->view_count
+            ]
         ]);
-        $statistic = Statistic::create($validated);
-        return response()->json($statistic, 201);
     }
 
-    /** @OA\Get(path="/api/statistics/{id}", tags={"Statistics"}, summary="Get statistic by ID", @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")), @OA\Response(response=200, description="Success")) */
-    public function show($id) { return response()->json(Statistic::findOrFail($id)); }
-
-    /** @OA\Put(path="/api/statistics/{id}", tags={"Statistics"}, summary="Update statistic", @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")), @OA\RequestBody(@OA\JsonContent(@OA\Property(property="view_count", type="integer"))), @OA\Response(response=200, description="Updated")) */
-    public function update(Request $request, $id)
+    public function getTopComicsByDay()
     {
-        $statistic = Statistic::findOrFail($id);
-        $validated = $request->validate([
-            'comic_id' => 'sometimes|exists:comics,id',
-            'view_count' => 'sometimes|integer',
-            'date_recorded' => 'sometimes|date',
+        $today = Carbon::today();
+        $tomorrow = Carbon::tomorrow();
+
+        $topComics = Statistic::whereBetween('created_at', [$today, $tomorrow])
+            ->select('comic_id', \DB::raw('SUM(view_count) as total_views'))
+            ->with([
+                'comic' => function ($query) {
+                    $query->select('id', 'title', 'cover_image')
+                        ->with([
+                            'genres',
+                            'statistics',
+                            'favorites',
+                            'chapters' => function ($query) {
+                                $query->orderBy('chapter_order', 'desc')->take(1);
+                            }
+                        ]);
+                }
+            ])
+            ->groupBy('comic_id')
+            ->orderByDesc('total_views')
+            ->take(5)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'id' => $item->comic_id,
+                    'title' => $item->comic->title,
+                    'cover_image' => $item->comic->cover_image,
+                    'view_count' => $item->total_views,
+                    'genres' => $item->comic->genres,
+                    'statistics' => $item->comic->statistics,
+                    'favorites' => $item->comic->favorites,
+                    'chapters' => $item->comic->chapters,
+                    'status' => $item->comic->status
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'data' => $topComics
         ]);
-        $statistic->update($validated);
-        return response()->json($statistic);
     }
 
-    /** @OA\Delete(path="/api/statistics/{id}", tags={"Statistics"}, summary="Delete statistic", @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")), @OA\Response(response=204, description="Deleted")) */
-    public function destroy($id) { Statistic::findOrFail($id)->delete(); return response()->json(null, 204); }
+    public function getTopComicsByWeek()
+    {
+        $startOfWeek = Carbon::now()->startOfWeek();
+        $endOfWeek = Carbon::now()->endOfWeek();
+
+        $topComics = Statistic::whereBetween('created_at', [$startOfWeek, $endOfWeek])
+            ->select('comic_id', \DB::raw('SUM(view_count) as total_views'))
+            ->with([
+                'comic' => function ($query) {
+                    $query->select('id', 'title', 'cover_image')
+                        ->with([
+                            'genres',
+                            'statistics',
+                            'favorites',
+                            'chapters' => function ($query) {
+                                $query->orderBy('chapter_order', 'desc')->take(1);
+                            }
+                        ]);
+                }
+            ])
+            ->groupBy('comic_id')
+            ->orderByDesc('total_views')
+            ->take(5)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'id' => $item->comic_id,
+                    'title' => $item->comic->title,
+                    'cover_image' => $item->comic->cover_image,
+                    'view_count' => $item->total_views,
+                    'genres' => $item->comic->genres,
+                    'statistics' => $item->comic->statistics,
+                    'favorites' => $item->comic->favorites,
+                    'chapters' => $item->comic->chapters,
+                    'status' => $item->comic->status
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'data' => $topComics
+        ]);
+    }
+
+    public function getTopComicsByMonth()
+    {
+        $startOfMonth = Carbon::now()->startOfMonth();
+        $endOfMonth = Carbon::now()->endOfMonth();
+
+        $topComics = Statistic::whereBetween('created_at', [$startOfMonth, $endOfMonth])
+            ->select('comic_id', \DB::raw('SUM(view_count) as total_views'))
+            ->with([
+                'comic' => function ($query) {
+                    $query->select('id', 'title', 'cover_image', 'status')
+                        ->with([
+                            'genres',
+                            'statistics',
+                            'favorites',
+                            'chapters' => function ($query) {
+                                $query->orderBy('chapter_order', 'desc')->take(1);
+                            }
+                        ]);
+                }
+            ])
+            ->groupBy('comic_id')
+            ->orderByDesc('total_views')
+            ->take(5)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'id' => $item->comic_id,
+                    'title' => $item->comic->title,
+                    'cover_image' => $item->comic->cover_image,
+                    'view_count' => $item->total_views,
+                    'genres' => $item->comic->genres,
+                    'statistics' => $item->comic->statistics,
+                    'favorites' => $item->comic->favorites,
+                    'chapters' => $item->comic->chapters,
+                    'status' => $item->comic->status
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'data' => $topComics
+        ]);
+    }
+
+    public function increaseComicView($comicId)
+    {
+        try {
+            $statistic = Statistic::where('comic_id', $comicId)->first();
+
+            if (!$statistic) {
+                // Nếu chưa có thống kê, tạo mới
+                $statistic = Statistic::create([
+                    'comic_id' => $comicId,
+                    'view_count' => 1
+                ]);
+            } else {
+                // Nếu đã có, tăng lượt xem lên 1
+                $statistic->increment('view_count');
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Tăng lượt xem thành công',
+                'data' => [
+                    'id' => $statistic->comic_id,
+                    'view_count' => $statistic->view_count
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }
