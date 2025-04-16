@@ -9,53 +9,34 @@ use Illuminate\Support\Facades\Auth;
 class ComicController extends Controller
 {
     // Lấy tất cả comics
-    public function index(Request $request)
+    public function getAllComics(Request $request)
     {
-
-        $perPage = $request->input('per_page', 10); // Mặc định 10 items mỗi trang
+        $perPage = $request->input('per_page', 12); // Mặc định 12 items mỗi trang
         $page = $request->input('page', 1); // Mặc định trang 1
 
+        $user = null;
+        $token = request()->bearerToken();
+        if ($token) {
+            $user = \Laravel\Sanctum\PersonalAccessToken::findToken($token)?->tokenable;
+        }
         $comics = Comic::with([
-            'statistics',
             'genres',
             'chapters' => function ($query) {
-                $query->orderBy('created_at', 'desc')->take(3);
+                $query->orderBy('chapter_order', 'desc')->take(3);
             }
         ])
+            ->selectRaw('comics.*, COALESCE(SUM(statistics.view_count), 0) as totalViews')
+            ->leftJoin('statistics', 'comics.id', '=', 'statistics.comic_id')
+            ->groupBy('comics.id')
             ->orderBy('created_at', 'desc')
             ->paginate($perPage, ['*'], 'page', $page);
 
-        return response()->json([
-            'data' => $comics->items(),
-            'pagination' => [
-                'current_page' => $comics->currentPage(),
-                'last_page' => $comics->lastPage(),
-                'per_page' => $comics->perPage(),
-                'total' => $comics->total(),
-                'from' => $comics->firstItem(),
-                'to' => $comics->lastItem()
-            ]
-        ], 200);
-    }
-
-    // Lấy tất cả comics với auth
-    public function indexAuth(Request $request)
-    {
-        $user = Auth::user();
-        $perPage = $request->input('per_page', 10); // Mặc định 10 items mỗi trang
-        $page = $request->input('page', 1); // Mặc định trang 1
-
-        $comics = Comic::with([
-            'statistics',
-            'favorites',
-            'genres',
-            'chapters' => function ($query) {
-                $query->orderBy('created_at', 'desc')->take(3);
-            }
-        ])
-            ->orderBy('created_at', 'desc')
-            ->paginate($perPage, ['*'], 'page', $page);
-
+        if ($user) {
+            $comics->getCollection()->transform(function ($comic) use ($user) {
+                $comic->isFav = $comic->favorites()->where('user_id', $user->id)->exists();
+                return $comic;
+            });
+        }
         return response()->json([
             'data' => $comics->items(),
             'pagination' => [
@@ -70,9 +51,23 @@ class ComicController extends Controller
     }
 
     // Lấy 1 comic theo ID
-    public function show($id)
+    public function getComicById($id)
     {
-        $comic = Comic::with(['statistics', 'favorites', 'genres'])->find($id);
+        $user = null;
+        $token = request()->bearerToken();
+        if ($token) {
+            $user = \Laravel\Sanctum\PersonalAccessToken::findToken($token)?->tokenable;
+        }
+        $comic = Comic::with(['genres'])
+            ->selectRaw('comics.*, COALESCE(SUM(statistics.view_count), 0) as totalViews')
+            ->leftJoin('statistics', 'comics.id', '=', 'statistics.comic_id')
+            ->where('comics.id', $id)
+            ->groupBy('comics.id')
+            ->first();
+
+        if ($user) {
+            $comic->isFav = $comic->favorites()->where('user_id', $user->id)->exists();
+        }
 
         if (!$comic) {
             return response()->json([
@@ -81,52 +76,53 @@ class ComicController extends Controller
         }
 
         return response()->json([
-            'data' => $comic
-        ], 200);
-    }
-
-    // Lấy comics theo status
-    public function getByStatus($status)
-    {
-        // Kiểm tra status hợp lệ
-        if (!in_array($status, ['ongoing', 'completed'])) {
-            return response()->json([
-                'message' => 'Status không hợp lệ. Chỉ chấp nhận "ongoing" hoặc "completed"'
-            ], 400);
-        }
-
-        $comics = Comic::where('status', $status)->get();
-
-        if ($comics->isEmpty()) {
-            return response()->json([
-                'message' => "Không có comic nào với status '$status'"
-            ], 404);
-        }
-
-        return response()->json([
-            'message' => "Danh sách comics với status '$status'",
-            'data' => $comics
+            'data' => $comic,
         ], 200);
     }
 
     // Filter Comics với các tham số
     public function filterComics(Request $request)
     {
-        $query = Comic::query();
+        $user = null;
+        $token = request()->bearerToken();
+        if ($token) {
+            $user = \Laravel\Sanctum\PersonalAccessToken::findToken($token)?->tokenable;
+        }
+
+        $perPage = $request->input('per_page', 12); // Mặc định 12 items mỗi trang
+        $page = $request->input('page', 1); // Mặc định trang 1
+
+        $query = Comic::with([
+            'genres',
+            'chapters' => function ($query) {
+                $query->orderBy('chapter_order', 'desc')->take(3);
+            }
+        ])
+            ->selectRaw('comics.*, COALESCE(SUM(statistics.view_count), 0) as totalViews')
+            ->leftJoin('statistics', 'comics.id', '=', 'statistics.comic_id')
+            ->groupBy('comics.id');
 
         // Kiểm tra nếu không có param nào thì trả về tất cả comics
         if (!$request->hasAny(['keyword', 'genres', 'status', 'sortBy'])) {
-            $comics = Comic::with([
-                'statistics',
-                'favorites',
-                'genres',
-                'chapters' => function ($query) {
-                    $query->orderBy('created_at', 'desc')->take(3);
-                }
-            ])->orderBy('created_at', 'desc')->get();
+            $comics = $query->orderBy('created_at', 'desc')->paginate($perPage, ['*'], 'page', $page);
+
+            if ($user) {
+                $comics->getCollection()->transform(function ($comic) use ($user) {
+                    $comic->isFav = $comic->favorites()->where('user_id', $user->id)->exists();
+                    return $comic;
+                });
+            }
 
             return response()->json([
-                'data' => $comics
+                'data' => $comics->items(),
+                'pagination' => [
+                    'current_page' => $comics->currentPage(),
+                    'last_page' => $comics->lastPage(),
+                    'per_page' => $comics->perPage(),
+                    'total' => $comics->total(),
+                    'from' => $comics->firstItem(),
+                    'to' => $comics->lastItem()
+                ]
             ], 200);
         }
 
@@ -168,8 +164,7 @@ class ComicController extends Controller
                     $query->orderBy('updated_at', $direction);
                     break;
                 case 'views':
-                    $query->withCount('statistics as views')
-                        ->orderBy('views', $direction);
+                    $query->orderBy('totalViews', $direction);
                     break;
                 default:
                     $query->orderBy('created_at', 'desc');
@@ -178,45 +173,53 @@ class ComicController extends Controller
             $query->orderBy('created_at', 'desc');
         }
 
-        // Lấy kết quả với các quan hệ
-        $comics = $query->with([
-            'statistics',
-            'favorites',
-            'genres',
-            'chapters' => function ($query) {
-                $query->orderBy('created_at', 'desc')->take(3);
-            }
-        ])->get();
+        // Lấy kết quả
+        $comics = $query->paginate($perPage, ['*'], 'page', $page);
 
-        // Kiểm tra nếu không có kết quả
-        if ($comics->isEmpty()) {
-            return response()->json([
-                'data' => []
-            ], 200);
+        if ($user) {
+            $comics->getCollection()->transform(function ($comic) use ($user) {
+                $comic->isFav = $comic->favorites()->where('user_id', $user->id)->exists();
+                return $comic;
+            });
         }
 
         return response()->json([
-            'data' => $comics
+            'data' => $comics->items(),
+            'pagination' => [
+                'current_page' => $comics->currentPage(),
+                'last_page' => $comics->lastPage(),
+                'per_page' => $comics->perPage(),
+                'total' => $comics->total(),
+                'from' => $comics->firstItem(),
+                'to' => $comics->lastItem()
+            ]
         ], 200);
     }
 
     // Lấy ngẫu nhiên 1 truyện với 3 chapter mới nhất
     public function getRandomComic()
     {
-        // Lấy ngẫu nhiên 1 truyện với đầy đủ thông tin
-        $comic = Comic::with([
-            'statistics',
-            'favorites',
-            'genres',
-            'chapters' => function ($query) {
-                $query->orderBy('created_at', 'desc')->take(3);
-            }
-        ])->inRandomOrder()->first();
+        $user = null;
+        $token = request()->bearerToken();
+        if ($token) {
+            $user = \Laravel\Sanctum\PersonalAccessToken::findToken($token)?->tokenable;
+        }
+
+        $comic = Comic::with(['genres'])
+            ->selectRaw('comics.*, COALESCE(SUM(statistics.view_count), 0) as totalViews')
+            ->leftJoin('statistics', 'comics.id', '=', 'statistics.comic_id')
+            ->groupBy('comics.id')
+            ->inRandomOrder()
+            ->first();
 
         if (!$comic) {
             return response()->json([
                 'data' => null
             ], 200);
+        }
+
+        if ($user) {
+            $comic->isFav = $comic->favorites()->where('user_id', $user->id)->exists();
         }
 
         return response()->json([
@@ -226,7 +229,17 @@ class ComicController extends Controller
 
     public function searchOnChange(Request $request)
     {
-        $query = Comic::query();
+        $user = null;
+        $token = request()->bearerToken();
+        if ($token) {
+            $user = \Laravel\Sanctum\PersonalAccessToken::findToken($token)?->tokenable;
+        }
+
+        $query = Comic::with(['genres'])
+            ->selectRaw('comics.*, COALESCE(SUM(statistics.view_count), 0) as totalViews')
+            ->leftJoin('statistics', 'comics.id', '=', 'statistics.comic_id')
+            ->groupBy('comics.id');
+
         $keyword = $request->keyword;
         $query->where(function ($q) use ($keyword) {
             $q->where('title', 'like', "%{$keyword}%")
@@ -234,11 +247,14 @@ class ComicController extends Controller
                 ->orWhere('author', 'like', "%{$keyword}%");
         });
 
-        $comics = $query->with([
-            'statistics',
-            'favorites',
-            'genres',
-        ])->get();
+        $comics = $query->get();
+
+        if ($user) {
+            $comics->transform(function ($comic) use ($user) {
+                $comic->isFav = $comic->favorites()->where('user_id', $user->id)->exists();
+                return $comic;
+            });
+        }
 
         return response()->json([
             'data' => $comics

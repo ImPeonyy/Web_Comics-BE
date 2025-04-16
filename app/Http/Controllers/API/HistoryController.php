@@ -15,8 +15,6 @@ class HistoryController extends Controller
         $user = Auth::user();
 
         $history = History::where('user_id', $user->id)
-            ->with(['comic', 'chapter'])
-            ->orderBy('updated_at', 'desc') // Sắp xếp theo thời gian đọc gần nhất
             ->get();
 
         return response()->json([
@@ -29,17 +27,21 @@ class HistoryController extends Controller
     {
         $user = Auth::user();
 
-        $perPage = $request->input('per_page', 10);
+        $perPage = $request->input('per_page', 12);
         $page = $request->input('page', 1);
 
         $history = History::where('user_id', $user->id)
             ->with([
                 'comic' => function ($query) {
                     $query->with([
-                        'statistics',
                         'genres',
-                        'favorites',
-                    ]);
+                        'chapters' => function ($query) {
+                            $query->orderBy('chapter_order', 'desc')->take(1);
+                        }
+                    ])
+                        ->selectRaw('comics.*, COALESCE(SUM(statistics.view_count), 0) as totalViews')
+                        ->leftJoin('statistics', 'comics.id', '=', 'statistics.comic_id')
+                        ->groupBy('comics.id');
                 },
                 'chapter'
             ])
@@ -53,8 +55,14 @@ class HistoryController extends Controller
             ->orderBy('updated_at', 'desc')
             ->paginate($perPage, ['*'], 'page', $page);
 
+        // Thêm trường isFav vào mỗi comic
+        $history->getCollection()->transform(function ($item) use ($user) {
+            $item->comic->isFav = $item->comic->favorites()->where('user_id', $user->id)->exists();
+            return $item;
+        });
+
         return response()->json([
-            'data' => $history,
+            'data' => $history->items(),
             'pagination' => [
                 'current_page' => $history->currentPage(),
                 'last_page' => $history->lastPage(),
@@ -74,10 +82,11 @@ class HistoryController extends Controller
             ->with([
                 'comic' => function ($query) {
                     $query->with([
-                        'statistics',
-                        'genres',
-                        'favorites',
-                    ]);
+                        'genres'
+                    ])
+                        ->selectRaw('comics.*, COALESCE(SUM(statistics.view_count), 0) as totalViews')
+                        ->leftJoin('statistics', 'comics.id', '=', 'statistics.comic_id')
+                        ->groupBy('comics.id');
                 },
                 'chapter'
             ])
@@ -90,6 +99,12 @@ class HistoryController extends Controller
             })
             ->orderBy('updated_at', 'desc')
             ->get();
+
+        // Thêm trường isFav vào mỗi comic
+        $history->transform(function ($item) use ($user) {
+            $item->comic->isFav = $item->comic->favorites()->where('user_id', $user->id)->exists();
+            return $item;
+        });
 
         return response()->json([
             'data' => $history,

@@ -10,64 +10,37 @@ use Carbon\Carbon;
 
 class StatisticController extends Controller
 {
-
-    public function getComicViews($comicId)
-    {
-        $statistic = Statistic::where('comic_id', $comicId)->first();
-
-        if (!$statistic) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Không tìm thấy thống kê cho bộ truyện này',
-                'data' => null
-            ], 404);
-        }
-
-        return response()->json([
-            'data' => [
-                'comic_id' => $statistic->comic_id,
-                'view_count' => $statistic->view_count
-            ]
-        ]);
-    }
-
     public function getTopComicsByDay()
     {
+        $user = null;
+        $token = request()->bearerToken();
+        if ($token) {
+            $user = \Laravel\Sanctum\PersonalAccessToken::findToken($token)?->tokenable;
+        }
+
         $today = Carbon::today();
         $tomorrow = Carbon::tomorrow();
 
-        $topComics = Statistic::whereBetween('created_at', [$today, $tomorrow])
-            ->select('comic_id', \DB::raw('SUM(view_count) as total_views'))
-            ->with([
-                'comic' => function ($query) {
-                    $query->select('id', 'title', 'cover_image')
-                        ->with([
-                            'genres',
-                            'statistics',
-                            'favorites',
-                            'chapters' => function ($query) {
-                                $query->orderBy('chapter_order', 'desc')->take(1);
-                            }
-                        ]);
-                }
-            ])
-            ->groupBy('comic_id')
-            ->orderByDesc('total_views')
+        $topComics = Comic::with([
+            'genres',
+            'chapters' => function ($query) {
+                $query->orderBy('chapter_order', 'desc')->take(1);
+            }
+        ])
+            ->selectRaw('comics.*, COALESCE(SUM(statistics.view_count), 0) as totalViews')
+            ->leftJoin('statistics', 'comics.id', '=', 'statistics.comic_id')
+            ->whereBetween('statistics.created_at', [$today, $tomorrow])
+            ->groupBy('comics.id')
+            ->orderByDesc('totalViews')
             ->take(5)
-            ->get()
-            ->map(function ($item) {
-                return [
-                    'id' => $item->comic_id,
-                    'title' => $item->comic->title,
-                    'cover_image' => $item->comic->cover_image,
-                    'view_count' => $item->total_views,
-                    'genres' => $item->comic->genres,
-                    'statistics' => $item->comic->statistics,
-                    'favorites' => $item->comic->favorites,
-                    'chapters' => $item->comic->chapters,
-                    'status' => $item->comic->status
-                ];
+            ->get();
+
+        if ($user) {
+            $topComics->transform(function ($comic) use ($user) {
+                $comic->isFav = $comic->favorites()->where('user_id', $user->id)->exists();
+                return $comic;
             });
+        }
 
         return response()->json([
             'success' => true,
@@ -77,41 +50,35 @@ class StatisticController extends Controller
 
     public function getTopComicsByWeek()
     {
+        $user = null;
+        $token = request()->bearerToken();
+        if ($token) {
+            $user = \Laravel\Sanctum\PersonalAccessToken::findToken($token)?->tokenable;
+        }
+
         $startOfWeek = Carbon::now()->startOfWeek();
         $endOfWeek = Carbon::now()->endOfWeek();
 
-        $topComics = Statistic::whereBetween('created_at', [$startOfWeek, $endOfWeek])
-            ->select('comic_id', \DB::raw('SUM(view_count) as total_views'))
-            ->with([
-                'comic' => function ($query) {
-                    $query->select('id', 'title', 'cover_image')
-                        ->with([
-                            'genres',
-                            'statistics',
-                            'favorites',
-                            'chapters' => function ($query) {
-                                $query->orderBy('chapter_order', 'desc')->take(1);
-                            }
-                        ]);
-                }
-            ])
-            ->groupBy('comic_id')
-            ->orderByDesc('total_views')
+        $topComics = Comic::with([
+            'genres',
+            'chapters' => function ($query) {
+                $query->orderBy('chapter_order', 'desc')->take(1);
+            }
+        ])
+            ->selectRaw('comics.*, COALESCE(SUM(statistics.view_count), 0) as totalViews')
+            ->leftJoin('statistics', 'comics.id', '=', 'statistics.comic_id')
+            ->whereBetween('statistics.created_at', [$startOfWeek, $endOfWeek])
+            ->groupBy('comics.id')
+            ->orderByDesc('totalViews')
             ->take(5)
-            ->get()
-            ->map(function ($item) {
-                return [
-                    'id' => $item->comic_id,
-                    'title' => $item->comic->title,
-                    'cover_image' => $item->comic->cover_image,
-                    'view_count' => $item->total_views,
-                    'genres' => $item->comic->genres,
-                    'statistics' => $item->comic->statistics,
-                    'favorites' => $item->comic->favorites,
-                    'chapters' => $item->comic->chapters,
-                    'status' => $item->comic->status
-                ];
+            ->get();
+
+        if ($user) {
+            $topComics->transform(function ($comic) use ($user) {
+                $comic->isFav = $comic->favorites()->where('user_id', $user->id)->exists();
+                return $comic;
             });
+        }
 
         return response()->json([
             'success' => true,
@@ -121,41 +88,35 @@ class StatisticController extends Controller
 
     public function getTopComicsByMonth()
     {
+        $user = null;
+        $token = request()->bearerToken();
+        if ($token) {
+            $user = \Laravel\Sanctum\PersonalAccessToken::findToken($token)?->tokenable;
+        }
+
         $startOfMonth = Carbon::now()->startOfMonth();
         $endOfMonth = Carbon::now()->endOfMonth();
 
-        $topComics = Statistic::whereBetween('created_at', [$startOfMonth, $endOfMonth])
-            ->select('comic_id', \DB::raw('SUM(view_count) as total_views'))
-            ->with([
-                'comic' => function ($query) {
-                    $query->select('id', 'title', 'cover_image', 'status')
-                        ->with([
-                            'genres',
-                            'statistics',
-                            'favorites',
-                            'chapters' => function ($query) {
-                                $query->orderBy('chapter_order', 'desc')->take(1);
-                            }
-                        ]);
-                }
-            ])
-            ->groupBy('comic_id')
-            ->orderByDesc('total_views')
+        $topComics = Comic::with([
+            'genres',
+            'chapters' => function ($query) {
+                $query->orderBy('chapter_order', 'desc')->take(1);
+            }
+        ])
+            ->selectRaw('comics.*, COALESCE(SUM(statistics.view_count), 0) as totalViews')
+            ->leftJoin('statistics', 'comics.id', '=', 'statistics.comic_id')
+            ->whereBetween('statistics.created_at', [$startOfMonth, $endOfMonth])
+            ->groupBy('comics.id')
+            ->orderByDesc('totalViews')
             ->take(5)
-            ->get()
-            ->map(function ($item) {
-                return [
-                    'id' => $item->comic_id,
-                    'title' => $item->comic->title,
-                    'cover_image' => $item->comic->cover_image,
-                    'view_count' => $item->total_views,
-                    'genres' => $item->comic->genres,
-                    'statistics' => $item->comic->statistics,
-                    'favorites' => $item->comic->favorites,
-                    'chapters' => $item->comic->chapters,
-                    'status' => $item->comic->status
-                ];
+            ->get();
+
+        if ($user) {
+            $topComics->transform(function ($comic) use ($user) {
+                $comic->isFav = $comic->favorites()->where('user_id', $user->id)->exists();
+                return $comic;
             });
+        }
 
         return response()->json([
             'success' => true,
@@ -166,16 +127,21 @@ class StatisticController extends Controller
     public function increaseComicView($comicId)
     {
         try {
-            $statistic = Statistic::where('comic_id', $comicId)->first();
+            $today = Carbon::today();
+            $tomorrow = Carbon::tomorrow();
+
+            $statistic = Statistic::where('comic_id', $comicId)
+                ->whereBetween('created_at', [$today, $tomorrow])
+                ->first();
 
             if (!$statistic) {
-                // Nếu chưa có thống kê, tạo mới
+                // Nếu chưa có thống kê trong ngày, tạo mới
                 $statistic = Statistic::create([
                     'comic_id' => $comicId,
                     'view_count' => 1
                 ]);
             } else {
-                // Nếu đã có, tăng lượt xem lên 1
+                // Nếu đã có thống kê trong ngày, tăng lượt xem lên 1
                 $statistic->increment('view_count');
             }
 
@@ -184,7 +150,8 @@ class StatisticController extends Controller
                 'message' => 'Tăng lượt xem thành công',
                 'data' => [
                     'id' => $statistic->comic_id,
-                    'view_count' => $statistic->view_count
+                    'view_count' => $statistic->view_count,
+                    'date' => $statistic->created_at->format('Y-m-d')
                 ]
             ]);
         } catch (\Exception $e) {
