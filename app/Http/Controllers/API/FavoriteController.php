@@ -15,23 +15,30 @@ class FavoriteController extends Controller
     {
         $user = Auth::user();
 
-        $perPage = $request->input('per_page', 10);
+        $perPage = $request->input('per_page', 12);
         $page = $request->input('page', 1);
 
         $favorites = Favorite::where('user_id', $user->id)
             ->with([
                 'comic' => function ($query) {
                     $query->with([
-                        'statistics',
                         'genres',
                         'chapters' => function ($query) {
-                            $query->orderBy('created_at', 'desc')->take(3);
-                        },
-                        'favorites'
-                    ]);
+                            $query->orderBy('chapter_order', 'desc')->take(3);
+                        }
+                    ])
+                        ->selectRaw('comics.*, COALESCE(SUM(statistics.view_count), 0) as totalViews')
+                        ->leftJoin('statistics', 'comics.id', '=', 'statistics.comic_id')
+                        ->groupBy('comics.id');
                 }
             ])
             ->paginate($perPage, ['*'], 'page', $page);
+
+        // Thêm trường isFav vào mỗi comic
+        $favorites->getCollection()->transform(function ($favorite) use ($user) {
+            $favorite->comic->isFav = true; // Vì đây là danh sách yêu thích nên mặc định là true
+            return $favorite;
+        });
 
         return response()->json([
             'data' => $favorites->items(),
@@ -54,16 +61,23 @@ class FavoriteController extends Controller
             ->with([
                 'comic' => function ($query) {
                     $query->with([
-                        'statistics',
                         'genres',
-                        'favorites',
-                        'chapters' => function ($query): void {
+                        'chapters' => function ($query) {
                             $query->orderBy('chapter_order', 'desc')->take(1);
-                        },
-                    ]);
+                        }
+                    ])
+                        ->selectRaw('comics.*, COALESCE(SUM(statistics.view_count), 0) as totalViews')
+                        ->leftJoin('statistics', 'comics.id', '=', 'statistics.comic_id')
+                        ->groupBy('comics.id');
                 }
             ])
             ->get();
+
+        // Thêm trường isFav vào mỗi comic
+        $favorites->transform(function ($favorite) use ($user) {
+            $favorite->comic->isFav = true; // Vì đây là danh sách yêu thích nên mặc định là true
+            return $favorite;
+        });
 
         return response()->json([
             'data' => $favorites,
@@ -116,24 +130,6 @@ class FavoriteController extends Controller
 
         return response()->json([
             'message' => 'Đã xóa truyện khỏi danh sách yêu thích',
-        ], 200);
-    }
-
-    // Kiểm tra trạng thái yêu thích của một truyện cho người dùng cụ thể
-    public function getFavoriteByComicAndUser(Request $request)
-    {
-        $validated = $request->validate([
-            'comic_id' => 'required|exists:comics,id',
-            'user_id' => 'required|exists:users,id',
-        ]);
-
-        $favorite = Favorite::where('user_id', $validated['user_id'])
-            ->where('comic_id', $validated['comic_id'])
-            ->first();
-
-        return response()->json([
-            'is_favorite' => $favorite ? true : false,
-            'favorite' => $favorite,
         ], 200);
     }
 }

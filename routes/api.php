@@ -39,9 +39,6 @@ Route::middleware('auth:sanctum')->group(function () {
         // Thêm và xóa favorite của người dùng hiện tại
         Route::post('/add/{comicId}', [FavoriteController::class, 'addFavorite']);
         Route::delete('/remove/{comicId}', [FavoriteController::class, 'removeFavorite']);
-
-        // Kiểm tra trạng thái yêu thích của một truyện cho người dùng cụ thể
-        Route::get('/check', [FavoriteController::class, 'getFavoriteByComicAndUser']);
     });
 
     // History
@@ -63,10 +60,8 @@ Route::prefix('comics')->group(function () {
     Route::get('/random', [ComicController::class, 'getRandomComic']); // Lấy ngẫu nhiên 1 truyện với 3 chapter mới nhất
     Route::get('/filter', [ComicController::class, 'filterComics']);
     Route::get('/search', [ComicController::class, 'searchOnChange']); // Lấy comics theo keyword
-    Route::get('/', [ComicController::class, 'index']); // Lấy tất cả comics
-    Route::get('/auth', [ComicController::class, 'indexAuth'])->middleware('auth:sanctum'); // Lấy tất cả comics với auth
-    Route::get('/{id}', [ComicController::class, 'show']); // Lấy 1 comic theo ID
-    Route::get('/status/{status}', [ComicController::class, 'getByStatus']); // Lấy comics theo status
+    Route::get('/', [ComicController::class, 'getAllComics']); // Lấy tất cả comics
+    Route::get('/{id}', [ComicController::class, 'getComicById']); // Lấy 1 comic theo ID
 });
 
 // Chapters
@@ -87,7 +82,6 @@ Route::prefix('genres')->group(function () {
 
 // Statistics
 Route::prefix('statistics')->group(function () {
-    Route::get('comic/{comicId}', [StatisticController::class, 'getComicViews']);
     Route::get('top/day', [StatisticController::class, 'getTopComicsByDay']);
     Route::get('top/week', [StatisticController::class, 'getTopComicsByWeek']);
     Route::get('top/month', [StatisticController::class, 'getTopComicsByMonth']);

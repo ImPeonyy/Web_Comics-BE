@@ -10,7 +10,7 @@ class ComicGenreController extends Controller
 {
     public function getComicsByGenre($genreId, Request $request)
     {
-        $perPage = $request->input('per_page', 10);
+        $perPage = $request->input('per_page', 12);
         $page = $request->input('page', 1);
 
         $comics = ComicGenre::with([
