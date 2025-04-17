@@ -12,6 +12,9 @@ use App\Http\Controllers\API\HistoryController;
 use App\Http\Controllers\API\StatisticController;
 use App\Http\Controllers\API\GenreController;
 use App\Http\Controllers\API\ComicGenreController;
+
+Route::get('/health', fn() => ['status' => 'ok']);
+
 // Users
 Route::post('register', [UserController::class, 'register']);
 Route::post('login', [UserController::class, 'login']);
