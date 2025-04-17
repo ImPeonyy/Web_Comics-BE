@@ -59,7 +59,8 @@ return [
             'throw' => false,
             'report' => false,
         ],
-        'cloudinary' => [
+    
+        'cloudinary' => [ 
             'driver' => 'cloudinary',
             'cloud' => env('do2rk0jz8'),
             'key' => env('581922892394899'),
