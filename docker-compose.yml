@@ -1,0 +1,49 @@
+version: '3'
+services:
+    app:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        image: web-comics
+        container_name: web-comics-app
+        restart: unless-stopped
+        working_dir: /var/www/
+        volumes:
+            - ./:/var/www
+        networks:
+            - web-comics
+
+    nginx:
+        image: nginx:alpine
+        container_name: web-comics-nginx
+        restart: unless-stopped
+        ports:
+            - '8000:80'
+        volumes:
+            - ./:/var/www
+            - ./docker/nginx:/etc/nginx/conf.d/
+        networks:
+            - web-comics
+
+    db:
+        image: mysql:8.0
+        container_name: web-comics-db
+        restart: unless-stopped
+        environment:
+            MYSQL_DATABASE: ${DB_DATABASE}
+            MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+            MYSQL_PASSWORD: ${DB_PASSWORD}
+            MYSQL_USER: ${DB_USERNAME}
+            SERVICE_TAGS: dev
+            SERVICE_NAME: mysql
+        volumes:
+            - dbdata:/var/lib/mysql
+        networks:
+            - web-comics
+
+networks:
+    web-comics:
+        driver: bridge
+
+volumes:
+    dbdata:
