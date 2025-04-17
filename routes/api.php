@@ -13,7 +13,10 @@ use App\Http\Controllers\API\StatisticController;
 use App\Http\Controllers\API\GenreController;
 use App\Http\Controllers\API\ComicGenreController;
 
-Route::get('/health', fn() => ['status' => 'ok']);
+Route::get('/health', function () {
+    \Log::info('Health check accessed at ' . now());
+    return response()->json(['status' => 'ok'], 200);
+});
 
 // Users
 Route::post('register', [UserController::class, 'register']);
