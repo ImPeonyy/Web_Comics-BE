@@ -150,8 +150,7 @@ class StatisticController extends Controller
                 'message' => 'Tăng lượt xem thành công',
                 'data' => [
                     'id' => $statistic->comic_id,
-                    'view_count' => $statistic->view_count,
-                    'date' => $statistic->created_at->format('Y-m-d')
+                    'view_count' => $statistic->view_count
                 ]
             ]);
         } catch (\Exception $e) {

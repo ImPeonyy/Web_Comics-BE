@@ -13,23 +13,31 @@ use App\Http\Controllers\API\StatisticController;
 use App\Http\Controllers\API\GenreController;
 use App\Http\Controllers\API\ComicGenreController;
 
-Route::get('/health', function () {
-    \Log::info('Health check accessed at ' . now());
-    return response()->json(['status' => 'ok'], 200);
-});
-
 // Users
 Route::post('register', [UserController::class, 'register']);
 Route::post('login', [UserController::class, 'login']);
 Route::middleware('auth:sanctum')->group(function () {
+
     Route::post('/logout', [UserController::class, 'logout'])->middleware('self');
     Route::prefix('users')->group(function () {
         Route::post('/upload-avatar', [UserController::class, 'uploadAvatar'])->middleware('self');
         Route::post('/change-password', [UserController::class, 'changePassword'])->middleware('self');
-        Route::get('/', [UserController::class, 'index'])->middleware('admin');
+        Route::post('/increase-exp', [UserController::class, 'increaseExp'])->middleware('self');
+        Route::get('/exp', [UserController::class, 'getExp'])->middleware('self');
         Route::get('/{id}', [UserController::class, 'show'])->middleware('self');
         Route::put('/update-info', [UserController::class, 'update'])->middleware('self');
         Route::delete('/{id}', [UserController::class, 'destroy'])->middleware('admin');
+    });
+
+    Route::middleware('admin')->group(function () {
+        Route::prefix('admin')->group(function () {
+            Route::get('/all-users', [UserController::class, 'index']);
+            Route::get('/all-comics', [ComicController::class, 'getAllComicsAdmin']);
+            Route::put('/update-user/{id}', [UserController::class, 'updateUser']);
+            Route::delete('/delete-user/{id}', [UserController::class, 'deleteUser']);
+            Route::put('/update-comic/{id}', [ComicController::class, 'updateComic']);
+            Route::delete('/delete-comic/{id}', [ComicController::class, 'deleteComic']);
+        });
     });
 
     // Comments

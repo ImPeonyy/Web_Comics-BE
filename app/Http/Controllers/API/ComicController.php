@@ -104,7 +104,7 @@ class ComicController extends Controller
 
         // Kiểm tra nếu không có param nào thì trả về tất cả comics
         if (!$request->hasAny(['keyword', 'genres', 'status', 'sortBy'])) {
-            $comics = $query->orderBy('created_at', 'desc')->paginate($perPage, ['*'], 'page', $page);
+            $comics = $query->orderBy('created_at', 'asc')->paginate($perPage, ['*'], 'page', $page);
 
             if ($user) {
                 $comics->getCollection()->transform(function ($comic) use ($user) {
@@ -167,10 +167,10 @@ class ComicController extends Controller
                     $query->orderBy('totalViews', $direction);
                     break;
                 default:
-                    $query->orderBy('created_at', 'desc');
+                    $query->orderBy('created_at', 'asc');
             }
         } else {
-            $query->orderBy('created_at', 'desc');
+            $query->orderBy('created_at', 'asc');
         }
 
         // Lấy kết quả
@@ -258,6 +258,95 @@ class ComicController extends Controller
 
         return response()->json([
             'data' => $comics
+        ], 200);
+    }
+
+    // Lấy tất cả comics cho admin
+    public function getAllComicsAdmin(Request $request)
+    {
+        $comics = Comic::with([
+            'genres',
+            'chapters' => function ($query) {
+                $query->orderBy('chapter_order', 'desc');
+            }
+        ])
+            ->selectRaw('comics.*, 
+                COALESCE(SUM(statistics.view_count), 0) as totalViews,
+                COUNT(DISTINCT favorites.id) as totalFavorites,
+                COUNT(DISTINCT chapters.id) as totalChapters')
+            ->leftJoin('statistics', 'comics.id', '=', 'statistics.comic_id')
+            ->leftJoin('favorites', 'comics.id', '=', 'favorites.comic_id')
+            ->leftJoin('chapters', 'comics.id', '=', 'chapters.comic_id')
+            ->groupBy('comics.id')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        // Lấy chapter mới nhất cho mỗi truyện
+        $comics->transform(function ($comic) {
+            $comic->latestChapter = $comic->chapters->first();
+            return $comic;
+        });
+
+        return response()->json([
+            'data' => $comics
+        ], 200);
+    }
+
+    // Cập nhật thông tin truyện
+    public function updateComic(Request $request, $id)
+    {
+        // Kiểm tra xem truyện có tồn tại không
+        $comic = Comic::find($id);
+        if (!$comic) {
+            return response()->json([
+                'message' => 'Truyện không tồn tại'
+            ], 404);
+        }
+
+        // Validate dữ liệu đầu vào
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'description' => 'string',
+            'author' => 'required|string|max:255',
+            'status' => 'required|in:Ongoing,Completed,Hiatus',
+            'genres' => 'required|array',
+            'genres.*' => 'exists:genres,id'
+        ]);
+
+        // Cập nhật thông tin cơ bản của truyện
+        $comic->update([
+            'title' => $request->title,
+            'description' => $request->description,
+            'author' => $request->author,
+            'status' => $request->status
+        ]);
+
+        // Cập nhật danh sách thể loại
+        $comic->genres()->sync($request->genres);
+
+        // Lấy lại thông tin truyện đã cập nhật
+        $updatedComic = Comic::with(['genres'])->find($id);
+
+        return response()->json([
+            'message' => 'Cập nhật truyện thành công',
+            'data' => $updatedComic
+        ], 200);
+    }
+
+    // Xóa truyện
+    public function deleteComic($id)
+    {
+        $comic = Comic::find($id);
+        if (!$comic) {
+            return response()->json([
+                'message' => 'Truyện không tồn tại'
+            ], 404);
+        }
+
+        $comic->delete();
+
+        return response()->json([
+            'message' => 'Xóa truyện thành công'
         ], 200);
     }
 }

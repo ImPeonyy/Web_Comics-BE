@@ -79,6 +79,7 @@ class UserController extends Controller
         return response()->json([
             'message' => 'Đăng nhập thành công',
             'id' => $user->id,
+            'role' => $user->role,
             'token' => $token,
         ], 200);
     }
@@ -249,5 +250,119 @@ class UserController extends Controller
         ], 204);
     }
 
+    public function getExp()
+    {
+        $user = Auth::user();
+        return response()->json($user->exp);
+    }
 
+    // Tăng 50 XP cho người dùng
+    public function increaseExp()
+    {
+        try {
+            // Lấy người dùng hiện tại từ Auth
+            $user = Auth::user();
+
+            if (!$user) {
+                return response()->json([
+                    'message' => 'Không tìm thấy người dùng'
+                ], 404);
+            }
+
+            // Tăng 50 XP cho người dùng
+            $user->exp += 50;
+            $user->save();
+
+            return response()->json([
+                'message' => 'Tăng 50 XP thành công',
+                'user' => $user
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Tăng XP thất bại: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // Sửa thông tin user (chỉ admin)
+    public function updateUser(Request $request, $id)
+    {
+        try {
+            // Kiểm tra quyền admin
+            if (Auth::user()->role !== 'admin') {
+                return response()->json([
+                    'message' => 'Không có quyền thực hiện hành động này'
+                ], 403);
+            }
+
+            // Tìm user cần sửa
+            $user = User::findOrFail($id);
+
+            // Validate dữ liệu đầu vào
+            $request->validate([
+                'username' => 'sometimes|string|max:50|unique:users,username,' . $id,
+                'email' => 'sometimes|string|email|max:100|unique:users,email,' . $id,
+                'exp' => 'sometimes|integer|min:0',
+                'role' => 'sometimes|string|in:user,admin',
+            ], [
+                'username.unique' => 'Tên người dùng đã được sử dụng!',
+                'email.unique' => 'Email đã được sử dụng!',
+                'role.in' => 'Vai trò không hợp lệ!',
+            ]);
+
+            // Cập nhật thông tin user
+            $updateData = array_filter([
+                'username' => $request->username,
+                'email' => $request->email,
+                'exp' => $request->exp,
+                'role' => $request->role,
+            ]);
+
+            $user->update($updateData);
+
+            return response()->json([
+                'message' => 'Cập nhật thông tin thành công',
+                'user' => $user
+            ], 200);
+
+        } catch (ValidationException $e) {
+            $errors = array_merge(...array_values($e->errors()));
+            return response()->json([
+                'messages' => $errors
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Cập nhật thông tin thất bại: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // Xóa user (chỉ admin)
+    public function deleteUser($id)
+    {
+        try {
+            // Kiểm tra quyền admin
+            if (Auth::user()->role !== 'admin') {
+                return response()->json([
+                    'message' => 'Không có quyền thực hiện hành động này'
+                ], 403);
+            }
+
+            // Tìm user cần xóa
+            $user = User::findOrFail($id);
+
+            // Xóa user
+            $user->delete();
+
+            return response()->json([
+                'message' => 'Xóa người dùng thành công'
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Xóa người dùng thất bại: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }
