@@ -24,7 +24,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/change-password', [UserController::class, 'changePassword'])->middleware('self');
         Route::post('/increase-exp', [UserController::class, 'increaseExp'])->middleware('self');
         Route::get('/exp', [UserController::class, 'getExp'])->middleware('self');
-        Route::get('/{id}', [UserController::class, 'show'])->middleware('self');
+        Route::get('/{id}', [UserController::class, 'show']);
         Route::put('/update-info', [UserController::class, 'update'])->middleware('self');
         Route::delete('/{id}', [UserController::class, 'destroy'])->middleware('admin');
     });
