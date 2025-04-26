@@ -96,6 +96,7 @@ Route::prefix('genres')->group(function () {
 
 // Statistics
 Route::prefix('statistics')->group(function () {
+    Route::get('recommend', [StatisticController::class, 'getRecommendComics']);
     Route::get('top/day', [StatisticController::class, 'getTopComicsByDay']);
     Route::get('top/week', [StatisticController::class, 'getTopComicsByWeek']);
     Route::get('top/month', [StatisticController::class, 'getTopComicsByMonth']);

@@ -124,6 +124,40 @@ class StatisticController extends Controller
         ]);
     }
 
+    public function getRecommendComics()
+    {
+        $user = null;
+        $token = request()->bearerToken();
+        if ($token) {
+            $user = \Laravel\Sanctum\PersonalAccessToken::findToken($token)?->tokenable;
+        }
+
+        $topComics = Comic::with([
+            'genres',
+            'chapters' => function ($query) {
+                $query->orderBy('chapter_order', 'desc')->take(1);
+            }
+        ])
+            ->selectRaw('comics.*, COALESCE(SUM(statistics.view_count), 0) as totalViews')
+            ->leftJoin('statistics', 'comics.id', '=', 'statistics.comic_id')
+            ->groupBy('comics.id')
+            ->orderByDesc('totalViews')
+            ->take(5)
+            ->get();
+
+        if ($user) {
+            $topComics->transform(function ($comic) use ($user) {
+                $comic->isFav = $comic->favorites()->where('user_id', $user->id)->exists();
+                return $comic;
+            });
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $topComics
+        ]);
+    }
+
     public function increaseComicView($comicId)
     {
         try {
