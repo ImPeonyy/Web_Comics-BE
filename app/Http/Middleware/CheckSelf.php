@@ -10,8 +10,8 @@ class CheckSelf
 {
     public function handle(Request $request, Closure $next)
     {
-        // Lấy ID từ route (ví dụ: users/{id})
-        $id = $request->route('id') ?? $request->input('id');
+        // Lấy token từ request
+        $requestToken = $request->bearerToken();
 
         $user = Auth::user();
 
@@ -20,8 +20,8 @@ class CheckSelf
             return $next($request);
         }
 
-        // Kiểm tra xem ID trong request có trùng với ID của người dùng hiện tại không
-        if ($id && $user->id != $id) {
+        // Kiểm tra xem token trong request có khớp với token của người dùng hiện tại không
+        if ($requestToken && $user->api_token != $requestToken) {
             return response()->json([
                 'message' => 'Bạn không có quyền thực hiện hành động này!',
             ], 403);
