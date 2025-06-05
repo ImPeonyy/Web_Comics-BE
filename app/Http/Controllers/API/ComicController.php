@@ -151,7 +151,7 @@ class ComicController extends Controller
         // Sắp xếp
         if ($request->has('sortBy')) {
             $sortBy = $request->sortBy;
-            $direction = $request->has('direction') ? $request->direction : 'desc';
+            $direction = $request->has('direction') ? $request->direction : 'asc';
 
             switch ($sortBy) {
                 case 'name':

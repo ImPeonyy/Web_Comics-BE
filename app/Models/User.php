@@ -9,7 +9,7 @@ class User extends Authenticatable
 {
     use HasApiTokens;
 
-    const DEFAULT_AVATAR = 'https://res.cloudinary.com/do2rk0jz8/image/upload/v1743480981/avatars/default_avatar.webp';
+    const DEFAULT_AVATAR = 'https://res.cloudinary.com/do2rk0jz8/image/upload/v1745679280/avatars/avatar_2.avif';
 
     protected $fillable = ['username', 'email', 'password', 'exp', 'role', 'avatar'];
     protected $hidden = ['password']; // Ẩn password khi trả về JSON
